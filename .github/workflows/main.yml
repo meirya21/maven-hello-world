@@ -2,9 +2,9 @@ name: Build, Package, and Push to Docker Hub
 
 on:
   push:
-    branches: [ main ]
+    branches: [ master ]
   pull_request:
-    branches: [ main ]
+    branches: [ master ]
 
 env:
   DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
@@ -15,10 +15,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout code
       - uses: actions/checkout@v4
 
-      # 2. Set up JDK
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -26,7 +24,6 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      # 3. Extract current version from pom.xml
       - name: Extract version
         id: version
         run: |
@@ -38,27 +35,22 @@ jobs:
           NEW_VERSION="$MAJOR.$MINOR.$NEW_PATCH"
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
 
-      # 4. Update pom.xml with new version
       - name: Update pom.xml version
         run: |
           mvn versions:set -DnewVersion=${{ steps.version.outputs.new_version }} -DgenerateBackupPoms=false
 
-      # 5. Build with Maven
       - name: Build with Maven
         run: mvn clean package -DskipTests
 
-      # 6. Set up Docker Buildx
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # 7. Login to Docker Hub
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_TOKEN }}
 
-      # 8. Build and push Docker image
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
@@ -70,7 +62,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # 9. Create GitHub Release
       - name: Create Release
         uses: actions/create-release@v1
         env:
@@ -83,8 +74,7 @@ jobs:
           draft: false
           prerelease: false
 
-      # 10. Pull and run the Docker image
       - name: Pull and run Docker image
         run: |
           docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/maven-hello-world:${{ steps.version.outputs.new_version }}
-          docker run --rm ${{ secrets.DOCKER_HUB_USERNAME }}/maven-hello-world:${{ steps.version.outputs.new_version }}
+          docker run --rm -p 8989:8080 ${{ secrets.DOCKER_HUB_USERNAME }}/maven-hello-world:${{ steps.version.outputs.new_version }}
